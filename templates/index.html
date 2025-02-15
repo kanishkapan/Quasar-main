@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gemini AI Assistant</title>
+    <style>
+        body {
+            width: 800px;
+            min-height: 500px;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            margin: 0 auto;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .tab {
+            flex: 1;
+            padding: 8px 15px;
+            text-align: center;
+            cursor: pointer;
+            background: #f0f0f0;
+            border: none;
+        }
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+        .chat-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        #userInput {
+            flex: 1;
+            padding: 8px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background: #e3f2fd;
+            margin-left: 20px;
+        }
+        .bot-message {
+            background: #f5f5f5;
+            margin-right: 20px;
+        }
+        #fileUpload {
+            margin: 10px 0;
+        }
+        .notes-container {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="tabs">
+        <div class="tab active" data-tab="chat">ChatBot</div>
+        <div class="tab" data-tab="notes">Notes Maker</div>
+    </div>
+
+    <div id="chatSection">
+        <div id="chatContainer" class="chat-container"></div>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="Type your message...">
+            <button id="sendButton">Send</button>
+        </div>
+    </div>
+
+    <div id="notesSection" style="display: none;">
+        <h3>Upload Document for Notes</h3>
+        <input type="file" id="fileUpload" accept=".txt,.doc,.docx,.pdf">
+        <button id="generateNotes">Generate Notes</button>
+        <div id="notesResult" class="notes-container"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach((tab) => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach((t) => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    const tabName = tab.dataset.tab;
+                    document.getElementById('chatSection').style.display =
+                        tabName === 'chat' ? 'block' : 'none';
+                    document.getElementById('notesSection').style.display =
+                        tabName === 'notes' ? 'block' : 'none';
+                });
+            });
+
+            // Chat functionality
+            const sendButton = document.getElementById('sendButton');
+            const userInput = document.getElementById('userInput');
+            const chatContainer = document.getElementById('chatContainer');
+
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+
+            async function sendMessage() {
+                const message = userInput.value.trim();
+                if (!message) return;
+
+                appendMessage('user', message);
+                userInput.value = '';
+
+                try {
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ prompt: message }),
+                    });
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        appendMessage('bot', `Error: ${data.error}`);
+                    } else {
+                        appendMessage('bot', data.response);
+                    }
+                } catch (error) {
+                    appendMessage('bot', `Error: ${error.message}`);
+                }
+            }
+
+            function appendMessage(sender, text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message', `${sender}-message`);
+                messageDiv.textContent = text;
+                chatContainer.appendChild(messageDiv);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            // Notes making functionality
+            const fileUpload = document.getElementById('fileUpload');
+            const generateNotes = document.getElementById('generateNotes');
+            const notesResult = document.getElementById('notesResult');
+
+            generateNotes.addEventListener('click', async () => {
+                const file = fileUpload.files[0];
+                if (!file) {
+                    alert('Please upload a file');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    notesResult.textContent = 'Generating notes...';
+                    const response = await fetch('/make-notes', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.error) {
+                        notesResult.textContent = `Error: ${data.error}`;
+                    } else {
+                        notesResult.innerHTML = `
+                            <h4>Notes for: ${data.filename}</h4>
+                            <div>${data.notes.replace(/\n/g, '<br>')}</div>
+                        `;
+                    }
+                } catch (error) {
+                    notesResult.textContent = `Error: ${error.message}`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
